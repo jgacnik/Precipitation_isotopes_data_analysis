@@ -1,0 +1,1 @@
+This directory is meant for saving generated plots/figures. Keep in mind that a figure saved with the same name as a pre-existing plot in the directory will overwrite the plot.
