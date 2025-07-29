@@ -5,7 +5,7 @@
 # R version: 4.4.2
 ###############################################################################
 # DO THIS STEP ONLY THE FIRST TIME! Installation of needed packages
-install.packages(c("mblm", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
+install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
 path_scripts <- "ENTER/PATH/TO/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
@@ -32,7 +32,7 @@ dpi_set <- 500
 
 # Load required packages for the current session
 setwd(path_scripts)
-lapply(c("mblm", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"), require, character.only = TRUE)
+lapply(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"), require, character.only = TRUE)
 
 # Calling needed functions
 source("Functions_MA&RMA.R")
@@ -230,9 +230,33 @@ Ljubljana_data_longer <-  Ljubljana_data %>%
   pivot_longer(cols = c(δ18O, δ2H, d, T, P), names_to = "Variable", values_to = "Value") %>%
   pivot_longer(cols = c(weighted_rolling_δ18O, weighted_rolling_δ2H, weighted_rolling_d), names_to = "Weighted_rolling_variable", values_to = "Weighted_rolling_value") %>%
   pivot_longer(cols = c(rolling_δ18O, rolling_δ2H, rolling_d, rolling_T, rolling_P), names_to = "Rolling_variable", values_to = "Rolling_value") %>%
-  mutate(Variable = factor(Variable, levels = c("δ18O", "δ2H", "d", "T", "P")),
+  mutate(Variable_color = Variable) %>%
+  mutate(Variable = case_when(
+    Variable == "δ18O" ~ "italic(delta)^18*O",
+    Variable == "δ2H" ~ "italic(delta)^2*H",
+    Variable == "d" ~ "d-excess",
+    TRUE ~ Variable
+  )) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")),
          Rolling_variable = factor(Rolling_variable, levels = c("rolling_δ18O", "rolling_δ2H", "rolling_d", "rolling_T", "rolling_P")),
          Weighted_rolling_variable = factor(Weighted_rolling_variable, levels = c("weighted_rolling_δ18O", "weighted_rolling_δ2H", "weighted_rolling_d")))
+
+Ljubljana_data_longer_month <- Ljubljana_data %>%
+  group_by(Month) %>%
+  summarise(mean_T = mean(T, na.rm = TRUE),
+            mean_P = mean(P, na.rm = TRUE),
+            weighted_mean_δ18O = sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_δ2H = sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_d = sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE)) %>%
+  pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, mean_T, mean_P), names_to = "Variable", values_to = "Value") %>%
+  mutate(Variable = case_when(
+    grepl("_δ18O", Variable) ~ "italic(delta)^18*O",
+    grepl("_δ2H", Variable) ~ "italic(delta)^2*H",
+    grepl("_d", Variable) ~ "d-excess",
+    grepl("_T", Variable) ~ "T",
+    grepl("_P", Variable) ~ "P",
+    TRUE ~ Variable)) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
 
 Ljubljana_data_longest <- Ljubljana_data %>%
   mutate(P_δ18O_δ2H = P) %>%
@@ -258,11 +282,19 @@ Ljubljana_data_longest <- Ljubljana_data %>%
   mutate(Variable_color = gsub("rolling_", "", Variable_color)) %>%
   mutate(Variable = gsub("rolling_", "10-year rolling ", Variable)) %>%
   mutate(Variable = case_when(
-    Variable == "d" ~ "d-excess",
-    Variable == "10-year rolling d" ~ "10-year rolling d-excess",
+    Variable == "δ18O" ~ "italic(delta)^18*O",
+    Variable == "10-year rolling δ18O" ~ "\"10-year rolling\"~italic(delta)^18*O",
+    Variable == "δ2H" ~ "italic(delta)^2*H",
+    Variable == "10-year rolling δ2H" ~ "\"10-year rolling\"~italic(delta)^2*H",
+    Variable == "d" ~ '"d-excess"',
+    Variable == "10-year rolling d" ~ '"10-year rolling d-excess"',
+    Variable == "T" ~ '"T"',
+    Variable == "10-year rolling T" ~ '"10-year rolling T"',
+    Variable == "P" ~ '"P"',
+    Variable == "10-year rolling P" ~ '"10-year rolling P"',
     TRUE ~ Variable
   )) %>%
-  mutate(Variable = factor(Variable, levels = c("δ18O", "10-year rolling δ18O", "δ2H", "10-year rolling δ2H", "d-excess", "10-year rolling d-excess", "T", "10-year rolling T", "P", "10-year rolling P")))
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "\"10-year rolling\"~italic(delta)^18*O", "italic(delta)^2*H", "\"10-year rolling\"~italic(delta)^2*H", '"d-excess"', '"10-year rolling d-excess"', '"T"', '"10-year rolling T"', '"P"', '"10-year rolling P"')))
 
 Ljubljana_data_all_supplement <- Ljubljana_data %>% 
   mutate(P_weighting = P) %>%
@@ -460,7 +492,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longest, Variable != "3H (TU)" & Vari
     expand = expansion(mult = 0.01, add = 0)) + # %b for month
   scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
   scale_color_manual(values = c("#00BA38", "#F564E3","#619CFF", "#F8766D", "#B79F00")) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 2) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 2, labeller = label_parsed) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
         axis.title.x = element_blank(),
@@ -480,7 +512,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longest, Variable != "3H (TU)" & Vari
 ggsave(filename = paste("Ljubljana_basic",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 180, height = 110, units = "mm")
 
 # VIOLIN PLOTS by MONTH
-ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)"), aes(x = Month, y = Value, colour = Variable, group = Month)) +
+ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)" & is.na(Variable) == FALSE), aes(x = Month, y = Value, colour = Variable, group = Month)) +
   geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
   geom_point(data = Ljubljana_data_longer_month, aes(x = Month, y = Value, group = Month), color = "black", size = 0.6) +
   labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess: [\u2030]    T: [°C]     P: [mm]")) +
@@ -489,7 +521,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)"), aes(x
                      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
                      expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = as_labeller(facet_labels, label_parsed)) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 6, colour = "black"),
         axis.title.x = element_blank(),
