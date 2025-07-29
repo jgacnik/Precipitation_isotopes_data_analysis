@@ -5,13 +5,13 @@ Data analysis and visualization of $\delta^{18}O$ and $\delta^{2}H$ values for t
 Prior to running R scripts, downloading shapefile data is required for generating map plots. The shapefiles used in in Gačnik et al. (_in preparation_) can be found on the data portal of Republic of Slovenia, Ministry of Natural Resources and Spatial Planning, via the following link: https://ipi.eprostor.gov.si/jgp/data. After entering the portal, follow _"Državni topografski sistem" -> "Državna pregledna karta" -> "Državna pregledna karta merila 250.000 - rastrski podatki" -> "Prenos podatkov"_ and download the zipfiles _"naselja in objekti.zip"_, _"komunikacije.zip"_, and _"hidrografija.zip"_. The zipfiles should be extracted to the directory _"shapes"_ which exists the directory where this GitHub repository is downloaded. For detailed desription of the contents and the name codes of shapefile data, consult the "shapefile_codes_description_GURS.docx" file located in the  _"shapes"_ directory.
 
 ## Instructions:
-1) Open the _"Data analysis and visualization.R"_ script.
-2) The first line of code should be ran only once and then deleted, as it installs all the needed R packages for running the script.
-3) Set path parameters to match the paths of your downloaded GitHub repositury. The path parameters are located in the lines 11-14 of the _"Data analysis and visualization.R"_ script.
+1) Open the _"Data analysis and visualization.R"_ in the _"scripts"_ directory, preferably with the RStudio text editor.
+2) The first line of code in the opened script should be ran only once and then uncommented, as it installs all the needed R packages for running the script.
+3) Set path parameters (_path_scripts_, _path_data_, _path_figures_, and _path_shapes_) to match the paths of your downloaded GitHub repositury. The path parameters are located in the lines 11-14 of the _"Data analysis and visualization.R"_ script.
 Pay attention to structure paths with "/" and not with "\"  (the default for Windows paths).
-3) Run the code line by line with CTRL + ENTER.
+3) Run the code line by line with CTRL + ENTER from line 11 onward.
     Notes: 
-    - The part of the script where Hilbert-Huang transform (HHT) and Ensemble Empirical Mode Decomposition (EEMD) are performed will require up to 20min to complete the HHT & EEMD for all variables and all stations
-    (3 stations with 6 variables each). Consider running the script on high-performance computing clusters to decrease the computing time
+    - The part of the script where Hilbert-Huang transform (HHT) and Ensemble Empirical Mode Decomposition (EEMD) are performed (starting at line 850) will require up to 20 min to complete the HHT & EEMD for all variables and all stations
+    (3 stations with 6 variables each). Consider running the script on high-performance computing clusters to decrease the computing time.
     - If correct shapefiles are NOT downloaded to the _"shapes"_ directory, the script will report errors when it comes to reading shapefiles and generating map plots.
     However, the rest of the script is not dependent on these shapefiles, so the code can still be used even without needed shapefiles.
