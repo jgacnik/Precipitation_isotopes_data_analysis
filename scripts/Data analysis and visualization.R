@@ -11,7 +11,6 @@ install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibe
 path_scripts <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
 path_data <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
 path_figures <-  "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
-path_shapes <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/shapes" # Change to your directory path where the shapefiles are located, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -437,7 +436,7 @@ time_vector_NAO <- NAO_timeseries$Date
 time_vector_Portoroz <- Portoroz_data_decomposition$Date[10:length(Portoroz_data_decomposition$Date)]
 time_vector_Vienna <- Vienna_data_decomposition$Date[1:(length(Vienna_data_decomposition$Date)-13)]
 
-# !!!!THIS STEP CAN TAKE UP TO 10 MIN!!!!
+# !!!!THESE STEPS CAN TAKE UP TO 20 MIN!!!!
 # 1000 Monte Carlo simulations for each variable (significance test) and analysis for each variable
 results_Ljubljana <- lapply(variables_Ljubljana, function(var) {
   message("Analyzing variable: ", var)
@@ -521,7 +520,6 @@ full_summary <- do.call(rbind, c(
     Variable == "d" ~ "d-excess",
     TRUE ~ Variable)
   ) %>%
-  #mutate(IMF = str_replace(IMF, "IMF(\\d+)", "IMF \\1")) %>%
   dplyr::select(Variable, IMF, Dominant_Period, p_value, everything()) %>%
   dplyr::select(-Energy) %>%
   mutate(across(where(is.numeric), ~ round(.x, 2)))
