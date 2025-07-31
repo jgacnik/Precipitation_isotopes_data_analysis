@@ -5,7 +5,7 @@ Data analysis and visualization of $\delta^{18}O$ and $\delta^{2}H$ values for t
 1) Open the _"Data analysis and visualization.R"_ in the _"scripts"_ directory, preferably with RStudio the text editor.
 2) The first line of code in the opened script should be ran only once and then uncommented, as it installs all the needed R packages for running the script.
 3) Set path parameters (_path_scripts_, _path_data_, and _path_figures_) to match the paths of your downloaded GitHub repository. The path parameters are located in the lines 11-13 of the _"Data analysis and visualization.R"_ script.
-Pay attention to structure paths with "/" and not with "\"  (the default for Windows paths).
+Pay attention to structure paths with "/" and not with "\\"  (the default for Windows paths).
 4) Run the code line by line with CTRL + ENTER from line 11 onward.
     Notes: 
     - The part of the script where Hilbert-Huang transform (HHT) and Ensemble Empirical Mode Decomposition (EEMD) are performed (starting at line 441) will require up to 20 min to complete the HHT & EEMD for all variables and all stations.
