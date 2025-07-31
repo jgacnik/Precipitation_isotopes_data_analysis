@@ -305,7 +305,7 @@ NAO_timeseries <- read.csv(file.path(path_data, NAO_filename), header = TRUE, ch
   pivot_longer(cols = 2:13, names_to = "Month", values_to = "NAO") %>% 
   mutate(Date = make_date(year = Year, month = Month))
 
-# Prepare HYSPLIT data and make some stats and plots for HYSPLIT
+# Prepare HYSPLIT data
 Metdata_filtered_Ljubljana <- read_xlsx(file.path(path_data, Ljubljana_filename_metdata), skip = 4) %>%
   rename(Day = "...1") %>%
   mutate(Day = as.Date(Day)) %>%
@@ -396,6 +396,7 @@ HYSPLIT_summary_Vienna <- HYSPLIT_timeseries_Vienna %>%
   group_by(Season) %>% 
   summarise(mean_percent = mean(percent_in_mediterranean, na.rm = TRUE))
 
+# Some basic HYSPLIT trend tests (increasing or decreasing, and Sens's slope)
 mk.test(HYSPLIT_timeseries_Ljubljana$Rolling_mediterranean, alternative = "less")
 sens.slope(HYSPLIT_timeseries_Ljubljana$Rolling_mediterranean)
 mk.test(HYSPLIT_timeseries_Portoroz$Rolling_mediterranean, alternative = "less")
