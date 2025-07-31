@@ -8,21 +8,21 @@
 install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "ENTER/PATH/TO/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "ENTER/PATH/TO/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <-  "ENTER/PATH/TO/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
-path_shapes <- "ENTER/PATH/TO/Precipitation isotopes data analysis/shapes" # Change to your directory path where the shapefiles are located, use "/" and not "\"
+path_scripts <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <-  "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_shapes <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/shapes" # Change to your directory path where the shapefiles are located, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
 ###############################################################################
 Ljubljana_filename <- "Ljubljana_1981-2024.xlsx"
-Ljubljana_filename_metdata <- "Ljubljana-daily-metdata.xlsx"
+Ljubljana_filename_metdata <- "Ljubljana-daily-meteodata.xlsx"
 Vienna_filename <- "Vienna_1973-2024.xlsx"
-Vienna_filename_metdata <- "Vienna-daily-metdata.xlsx"
+Vienna_filename_metdata <- "Vienna-daily-meteodata.xlsx"
 Vienna_filename_precipitation <- "Vienna_new_precip.xlsx"
 Portoroz_filename <- "Portoroz_2000-2024.xlsx"
-Portoroz_filename_metdata <- "Portoroz-daily-metdata.xlsx"
+Portoroz_filename_metdata <- "Portoroz-daily-meteodata.xlsx"
 HYSPLIT_filename <- "HYSPLIT_timeseries.xlsx"
 
 MOI_filename <- "MOI.txt"
@@ -38,154 +38,9 @@ lapply(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggp
 source("Functions_MA&RMA.R")
 source("Functions_Hilbert_Huang_transform.R")
 
-# MAP PLOTTING
-lon <- c(14.50, 14.65)  # Define longitude range
-lat <- c(45.95, 46.10)  # Define latitude range
-
-# Create a data frame for the coordinates and convert it into an sf object (in EPSG:4326)
-coords <- data.frame(
-  lon = c(lon[1], lon[2], lon[2], lon[1]),  # Coordinates for bounding box (lon)
-  lat = c(lat[1], lat[1], lat[2], lat[2])   # Coordinates for bounding box (lat)
-)
-
-# Convert the data frame to an sf object with EPSG:4326 (WGS 84)
-bbox_sf <- st_as_sf(coords, coords = c("lon", "lat"), crs = 4326) %>%
-  st_transform(3857) %>%
-  st_bbox()
-
-file_list_buildings <- list.files(file.path(path_shapes, "naselja_in_objekti"), pattern = "^T5032V\\d{4}_pB\\.shp$", , full.names = TRUE)
-shapefiles_building_sf <- map(file_list_buildings, read_sf)
-combined_building_sf <- do.call(rbind, shapefiles_building_sf) %>%
-  st_transform(crs = 3857)
-
-file_list_waters <- list.files(file.path(path_shapes, "hidrografija"), pattern = "^T5032V\\d{4}_pB\\.shp$", full.names = TRUE)
-shapefiles_waters_sf <- map(file_list_waters, read_sf)
-combined_waters_sf <- do.call(rbind, shapefiles_waters_sf) %>%
-  st_transform(3794) %>%
-  st_buffer(dist = 70) %>%
-  st_transform(crs = 3857)
-
-file_list_roads <- list.files(file.path(path_shapes, "komunikacije"), pattern = "^T5032V\\d{4}_lB\\.shp$", full.names = TRUE)
-shapefiles_roads_sf <- map(file_list_roads, read_sf)
-combined_roads_sf <- do.call(rbind, shapefiles_roads_sf) %>%
-  st_transform(crs = 3857) %>%
-  dplyr::filter(grepl("320[0-6]|310[0-7]|3401|3402|3405|3407", SYMBOL))
-
-shapefile_border_SLO <- ne_countries(scale = 10, continent = "Europe")
-shapefile_names_SLO <- data.frame(
-  Station_name = c("SVN", "AUT", "HRV", "ITA", "HUN"),
-  lon = c(14.9, 15, 15.35, 12.5, 17.2),
-  lat = c(46.3, 47.5, 45, 46.1, 46.8)
-) %>%
-  st_as_sf(coords = c("lon", "lat"), crs = 4326)
-
-stations_sf <- data.frame(
-  Station_name = c("Ljubljana–Bežigrad", "Ljubljana–JSI", "Ljubljana–Reaktor"),
-  lon = c(14.512352, 14.487778, 14.597046),
-  lat = c(46.065507, 46.041944, 46.094612)
-) %>%
-  st_as_sf(coords = c("lon", "lat"), crs = 4326)
-stations_Ljubljana_sf <- stations_sf %>%
-  st_transform(crs = 3857) 
-Ljubljana_sf <- stations_sf %>%
-  dplyr::filter(Station_name == "Ljubljana–Bežigrad") %>%
-  mutate(Station_name = "Ljubljana") %>%
-  rbind(st_as_sf(data.frame(
-    Station_name = c("Vienna", "Portorož"),
-    lon = c(16.37250, 13.5799694),
-    lat = c(48.20833, 45.5166333)
-  ), coords = c("lon", "lat"), crs = 4326))
-
-# Ljubljana map
-ggplot() +
-  geom_sf(data = combined_waters_sf, fill = "lightblue3", color = NA) +
-  geom_sf(data = combined_building_sf) + 
-  geom_sf(data = combined_roads_sf, color = "grey80", linewidth = 0.2) +
-  geom_sf(data = dplyr::filter(combined_roads_sf, grepl("320[1-3]|3401|3402|3405|3407", SYMBOL)), color = "darkslategray", linewidth = 0.4) +
-  geom_sf(data = stations_Ljubljana_sf, color = "black", fill = "red2", size = 1.7, shape = 21, stroke = 0.4) + 
-  geom_label(data = stations_sf, aes(x = st_coordinates(geometry)[,1], 
-                                     y = st_coordinates(geometry)[,2], 
-                                     label = Station_name), 
-             color = "black", fill = "white", alpha = 0.9, size = 2.4, fontface = "bold",
-             nudge_y = 1400,
-             label.padding = unit(0.15, "lines")) + 
-  ggspatial::annotation_scale(
-    style = "ticks",
-    location = "tr",
-    height = unit(0.12, "cm"),
-    pad_y = unit(-1, "mm"),
-    pad_x = unit(-1, "mm"),
-    text_cex = 0.55,
-    line_width = 0.3) +
-  ggspatial::annotation_north_arrow(
-    location = "tr", which_north = "true",
-    pad_x = unit(-1.5, "mm"),
-    pad_y = unit(0.2, "in"),
-    height = unit(1, "cm"),
-    width = unit(1, "cm"),
-    style = ggspatial::north_arrow_fancy_orienteering(
-      fill = c("grey40", "white"),
-      line_col = "grey20",
-      text_size = 6,
-      line_width = 0.3)) +
-  coord_sf(expand = 0.02, clip = "off") +
-  labs(x = "Longitude",
-       y = "Latitude") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 7),
-        axis.text = element_text(size = 6, color = "black"),
-        axis.ticks = element_blank(),
-        panel.border = element_blank())
-
-ggsave(filename = paste("Map_ljubljana",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 90, units = "mm")
-
-# Slovenia map
-ggplot() +
-  geom_sf(data = shapefile_border_SLO, fill = NA) +
-  geom_sf(data = dplyr::filter(shapefile_border_SLO, sov_a3 == "SVN"), fill = "grey85") +
-  geom_text(data = shapefile_names_SLO, aes(x = st_coordinates(geometry)[,1], 
-                                            y = st_coordinates(geometry)[,2], 
-                                            label = Station_name),
-            size = 1.8) +
-  geom_sf(data = Ljubljana_sf, fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
-  geom_text(data = Ljubljana_sf, aes(x = st_coordinates(geometry)[,1], 
-                                     y = st_coordinates(geometry)[,2], 
-                                     label = Station_name),
-            color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
-  coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 48.5)) +
-  theme_bw() +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid = element_blank())
-
-ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 60, height = 50, units = "mm")
-
-# Slovenia map graphical abstract
-ggplot() +
-  geom_sf(data = shapefile_border_SLO, fill = NA) +
-  geom_sf(data = dplyr::filter(shapefile_border_SLO, sov_a3 == "SVN"), fill = "grey85") +
-  geom_text(data = shapefile_names_SLO, aes(x = st_coordinates(geometry)[,1], 
-                                            y = st_coordinates(geometry)[,2], 
-                                            label = Station_name),
-            size = 1.8) +
-  geom_sf(data = Ljubljana_sf, fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
-  geom_text(data = Ljubljana_sf, aes(x = st_coordinates(geometry)[,1], 
-                                     y = st_coordinates(geometry)[,2], 
-                                     label = Station_name),
-            color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
-  coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 48.5)) +
-  theme_bw() +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid = element_blank(),
-        panel.border = element_blank())
-
-ggsave(filename = paste("Map_slovenia_graphical_abstract.png"), path = path_figures, device = "png", dpi = 1500, width = 60, height = 50, units = "mm")
-
-
+###############################################################################
 # Data reading, adjusting, and filtering
+###############################################################################
 Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data, Ljubljana_filename), trim_ws = TRUE) %>%
   dplyr::select(Sample_ID, Station_ID, Name, Year, Month, P, T, RH, δ18O, δ2H, d, δ18On, δ2Hn, dn) %>%
   mutate(Site = "Ljubljana") %>%
@@ -409,7 +264,7 @@ Portoroz_data <- read_xlsx(sheet = "Data Portorož", path = file.path(path_data,
          Date = as.Date(make_date(Year, Month)))
 
 # Vienna data
-Vienna_data <- read_xlsx(path = file.path(path_data, Vienna_filename), trim_ws = TRUE) %>%
+Vienna_data <- read_xlsx(sheet = "Data Vienna", path = file.path(path_data, Vienna_filename), trim_ws = TRUE) %>%
   dplyr::select(Sample_ID, Station_ID, Name, Year, Month, P, T, RH, δ18O, δ2H, d, δ18On, δ2Hn, dn) %>% 
   mutate(Site = "Vienna") %>%
   mutate(Season = "") %>%
@@ -423,115 +278,6 @@ Vienna_data <- read_xlsx(path = file.path(path_data, Vienna_filename), trim_ws =
   mutate(Date = as.POSIXct(make_date(Year, Month)),
          time_since_start = interval(min(Date), Date) %/% months(1),
          Date = as.Date(make_date(Year, Month)))
-
-#######################################################################################################
-### PLOTS LJUBLJANA####
-#######################################################################################################
-
-#######################################################################################################
-### MA and RMA ####
-#######################################################################################################
-# Plot all data
-regression <- RMA_weighted(x = Ljubljana_data_filtered$δ18O, y = Ljubljana_data_filtered$δ2H, weights = Ljubljana_data_filtered$P)
-RMA_plot(data = Ljubljana_data_filtered, regression = regression, x = δ18O, y = δ2H)
-ggsave(filename = paste("Ljubljana_RMA_All", ".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 80, units = "mm")
-
-# Plot by period - LOOP
-for (i in 1:length(unique(Ljubljana_data$Period))) {
-  data_loop <- subset(Ljubljana_data_filtered, Ljubljana_data_filtered$Period == unique(Ljubljana_data_filtered$Period)[i])
-  regression <- RMA_weighted(x = data_loop$δ18O, y = data_loop$δ2H, weights = data_loop$P)
-  RMA_plot_facet(data = data_loop, regression = regression, x = δ18O, y = δ2H, facet_var = Period)
-  print_period <- unique(data_loop$Period)
-  ggsave(filename = paste("Ljubljana_RMA_",print_period,".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 60, units = "mm")
-}
-
-# Plot yearly regressions in one plot
-ggplot(data = Ljubljana_data_slopes_longer_2, aes(x = Year, color = facet, linetype = weighting)) +
-  geom_line(aes(y = value), linewidth = 0.3) +
-  geom_abline(data = dplyr::filter(Ljubljana_data_slopes_longer_2, weighting == "Unweighted"),
-              aes(intercept = Intercept, slope = Slope), linewidth = 0.3) +
-  labs(y = expression("Slope: [1/\u2030],    intercept: [\u2030]")) +
-  scale_x_continuous(breaks = seq(1981, 2025, 5),
-                     expand = expansion(mult = 0.01, add = 0)) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  scale_color_manual(values = c("darkred", "darkblue")) +
-  scale_linetype_manual(values = c(2,1)) +
-  facet_wrap(facet ~ statistic, scales = "free", ncol = 1) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", , margin = margin(0.03, 0.03, 0.03, 0.03, unit = "cm")),
-        legend.position = "top",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.key.spacing.x = unit(0.3, "cm"),
-        legend.key.spacing.y = unit(0.7, "cm"),
-        legend.key.width = unit(0.4, "cm"),
-        legend.margin = margin(t = 0, r = 23, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black"),
-        legend.title = element_blank(),
-        panel.grid.minor = element_blank())
-
-ggsave(filename = paste("Ljubljana_slopes",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 110, units = "mm")
-
-#######################################################################################################
-### Time trends 18O, 2H, d, 3H, T, and P ####
-#######################################################################################################
-# Ljubljana basic time trend
-ggplot(data = dplyr::filter(Ljubljana_data_longest, Variable != "3H (TU)" & Variable != "10-year rolling 3H"), aes(x = Date, y = Value, color = Variable_color, linetype = Rolling)) +
-  geom_line(linewidth = 0.3) +
-  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess: [\u2030]    T: [°C]     P: [mm]")) +
-  guides(color = "none") +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  scale_color_manual(values = c("#00BA38", "#F564E3","#619CFF", "#F8766D", "#B79F00")) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 2, labeller = label_parsed) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
-        legend.position = "top",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.key.spacing.x = unit(0.7, "cm"),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 7, colour = "black"),
-        legend.title = element_blank(),
-        #panel.grid.minor.x = element_blank(),
-        panel.grid.minor.y = element_blank())
-
-ggsave(filename = paste("Ljubljana_basic",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 180, height = 110, units = "mm")
-
-# VIOLIN PLOTS by MONTH
-ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)" & is.na(Variable) == FALSE), aes(x = Month, y = Value, colour = Variable, group = Month)) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
-  geom_point(data = Ljubljana_data_longer_month, aes(x = Month, y = Value, group = Month), color = "black", size = 0.6) +
-  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess: [\u2030]    T: [°C]     P: [mm]")) +
-  scale_color_manual(values = c("#F8766D", "#B79F00", "#00BA38", "#619CFF", "#F564E3")) +
-  scale_x_continuous(breaks = seq(1, 12, 1),
-                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
-                     expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = as_labeller(facet_labels, label_parsed)) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black"),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
-        panel.grid.minor = element_blank(),
-        legend.position = "none")
-
-ggsave(filename = paste("Ljubljana_violin_month",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 110, units = "mm")
 
 ########################################################################################################
 # Hilbert - Huang transform (HHT) of different time series, ensemble empirical mode decomposition (EEMD)
@@ -677,193 +423,6 @@ Vienna_data_decomposition <- Vienna_data %>%
     TRUE ~ percent_in_mediterranean
   ))
 
-# PLOT HYSPLIT TIMETREND Ljubljana
-ggplot() +
-  geom_line(data = HYSPLIT_timeseries_Ljubljana, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("1981-05-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-05-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor.y = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Ljubljana_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT ROLLING TIMETREND Ljubljana
-ggplot() +
-  geom_line(data = dplyr::mutate(filter(HYSPLIT_timeseries_Ljubljana, Year > 1990), Variable = "10-year rolling Mediterranean air masses"), aes(x = Date, y = Rolling_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("1981-05-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-05-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Ljubljana_HYSPLIT_rolling_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT SEASONALITY Ljubljana
-ggplot(data = HYSPLIT_timeseries_Ljubljana, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
-  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
-  geom_point(data =HYSPLIT_summary_Ljubljana, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
-  scale_color_manual(values = c("salmon4")) +
-  labs(y = expression("%")) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none")
-
-ggsave(filename = paste("Ljubljana_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT TIMETREND Portoroz
-ggplot() +
-  geom_line(data = HYSPLIT_timeseries_Portoroz, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("2000-01-01", "2025-01-01")),
-    breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor.y = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Portoroz_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT ROLLING TIMETREND Portoroz
-ggplot() +
-  geom_line(data = dplyr::mutate(filter(HYSPLIT_timeseries_Portoroz, Year > 2009), Variable = "10-year rolling Mediterranean air masses"), aes(x = Date, y = Rolling_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("2000-01-01", "2025-01-01")),
-    breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor.y = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Portoroz_HYSPLIT_rolling_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT SEASONALITY Portoroz
-ggplot(data = HYSPLIT_timeseries_Portoroz, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
-  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
-  geom_point(data = HYSPLIT_summary_Portoroz, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
-  scale_color_manual(values = c("salmon4")) +
-  labs(y = expression("%")) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none")
-
-ggsave(filename = paste("Portoroz_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT TIMETREND Vienna
-ggplot() +
-  geom_line(data = HYSPLIT_timeseries_Vienna, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("1973-01-01", "2024-01-01")),
-    breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor.y = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Vienna_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT ROLLING TIMETREND Vienna
-ggplot() +
-  geom_line(data = dplyr::mutate(filter(HYSPLIT_timeseries_Vienna, Year > 1982), Variable = "10-year rolling Mediterranean air masses"), aes(x = Date, y = Rolling_mediterranean), color = "salmon4", linewidth = 0.3) +
-  scale_x_date(
-    limits = as.Date(c("1973-01-01", "2024-01-01")),
-    breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        panel.grid.minor.y = element_blank(),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none") +
-  labs(y = expression("%"))
-
-ggsave(filename = paste("Vienna_HYSPLIT_rolling_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-# PLOT HYSPLIT SEASONALITY Vienna
-ggplot(data = HYSPLIT_timeseries_Vienna, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
-  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
-  geom_point(data = HYSPLIT_summary_Vienna, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
-  scale_color_manual(values = c("salmon4")) +
-  labs(y = expression("%")) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 7, colour = "black"),
-        axis.title.y = element_text(size = 8, colour = "black"),
-        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        legend.position = "none")
-
-ggsave(filename = paste("Vienna_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
-
-################################################################################
 # Hilbert Huang transform (HHT) and ensemble empirical mode decomposition (EEMD)
 # List of variables to be analyzed with HHT & EEMD
 variables_Ljubljana <- c("δ18On", "δ2Hn", "dn", "T", "P", "percent_in_mediterranean")
@@ -1157,7 +716,7 @@ eemd_df_significant_plot_2 <- eemd_df_mediterranean_significant %>%
     IMF == "IMF 6" & Variable == "% in Mediterranean" ~ "IMF 6 (% Mediterranean, 15-year) & IMF 5 (d-excess, 7.5-year)",
     TRUE ~ IMF
   ))
-  
+
 # Generate amplitude_data frames for each variable and assign to objects
 amplitude_df_list <- Map(function(res, var) {
   create_amplitude_df(res$eemd_result, time_vector_Ljubljana, var)
@@ -1217,7 +776,6 @@ amplitude_df_mediterranean_significant <- amplitude_df_list[["percent_in_mediter
     IMF == "IMF6" ~ "15-year oscillation (IMF 6)",
     TRUE ~ IMF
   ))
-  
 
 amplitude_df_plot <- amplitude_df_d18O_significant %>%
   rbind(amplitude_df_d2H_significant, amplitude_df_d_significant) %>%
@@ -1237,6 +795,656 @@ amplitude_df_plot <- amplitude_df_d18O_significant %>%
     TRUE ~ IMF
   ))
 
+# FOR POWER SPECTRUM
+imf2_values <- amplitude_df_list[["dn"]] %>%
+  dplyr::filter(IMF == "IMF3", Type == "IMF oscillation") %>%
+  pull(Value)
+spec <- spectrum(imf2_values, plot = FALSE)
+spec_df <- data.frame(
+  Frequency = spec$freq,
+  Power = spec$spec
+)
+max_freq <- spec_df$Frequency[which.max(spec_df$Power)]
+
+###############################################################################
+# PLOTTING
+###############################################################################
+# GRAPHICAL ABSTRACT MAP & FIGURE 1
+###############################################################################
+# Creating and obtaining shapefiles for map plots
+borders_sf <- ne_countries(scale = 10, continent = "Europe")
+names_sf <- data.frame(
+  Station_name = c("SVN", "AUT", "HRV", "ITA", "HUN"),
+  lon = c(14.9, 15, 15.35, 12.5, 17.2),
+  lat = c(46.3, 47.5, 45, 46.1, 46.8)
+) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+stations_sf <- data.frame(
+  Station_name = c("Ljubljana", "Vienna", "Portorož"),
+  lon = c(14.512352, 16.37250, 13.5799694),
+  lat = c(46.065507, 48.20833, 45.5166333)) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+# GRAPHICAL ABSTRACT MAP
+ggplot() +
+  geom_sf(data = borders_sf, fill = NA) +
+  geom_sf(data = dplyr::filter(borders_sf, sov_a3 == "SVN"), fill = "grey85") +
+  geom_text(data = names_sf, aes(x = st_coordinates(geometry)[,1], 
+                                 y = st_coordinates(geometry)[,2], 
+                                 label = Station_name),
+            size = 1.8) +
+  geom_sf(data = stations_sf, fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
+  geom_text(data = stations_sf, aes(x = st_coordinates(geometry)[,1], 
+                                    y = st_coordinates(geometry)[,2], 
+                                    label = Station_name),
+            color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
+  coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 48.5)) +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.border = element_blank())
+
+ggsave(filename = paste("Map_slovenia_graphical_abstract.png"), path = path_figures, device = "png", dpi = 1500, width = 60, height = 50, units = "mm")
+
+# FIGURE 1
+ggplot() +
+  geom_sf(data = borders_sf, fill = NA) +
+  geom_sf(data = dplyr::filter(borders_sf, sov_a3 == "SVN"), fill = "grey85") +
+  geom_text(data = names_sf, aes(x = st_coordinates(geometry)[,1],
+                                 y = st_coordinates(geometry)[,2],
+                                 label = Station_name),
+            size = 2.5) +
+  ggspatial::annotation_scale(style = "ticks", location = "bl",
+                              height = unit(0.12, "cm"),
+                              pad_x = unit(3, "mm"),
+                              pad_y = unit(3, "mm"),
+                              text_cex = 0.55,
+                              line_width = 0.3) +
+  ggspatial::annotation_north_arrow(which_north = "true", location = "tr",
+                                    pad_x = unit(-0.8, "mm"),
+                                    pad_y = unit(2.5, "mm"),
+                                    height = unit(1, "cm"),
+                                    width = unit(1, "cm"),
+                                    style = ggspatial::north_arrow_fancy_orienteering(
+                                      fill = c("grey40", "white"),
+                                      line_col = "grey20",
+                                      text_size = 6,
+                                      line_width = 0.3)) +
+  geom_sf(data = stations_sf, fill = "black", size = 1, shape = 21, stroke = 0.4) + 
+  geom_text(data = stations_sf, aes(x = st_coordinates(geometry)[,1], 
+                                    y = st_coordinates(geometry)[,2], 
+                                    label = Station_name),
+            color = "black", size = 2.5, fontface = "bold", nudge_y = -0.15) +
+  coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 48.5)) +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank())
+
+ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 80, units = "mm")
+
+###############################################################################
+# FIGURE 2a
+###############################################################################
+ggplot(data = dplyr::filter(Ljubljana_data_longest, Variable != "3H (TU)" & Variable != "10-year rolling 3H"), aes(x = Date, y = Value, color = Variable_color, linetype = Rolling)) +
+  geom_line(linewidth = 0.3) +
+  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess: [\u2030]    T: [°C]     P: [mm]")) +
+  guides(color = "none") +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_color_manual(values = c("#00BA38", "#F564E3","#619CFF", "#F8766D", "#B79F00")) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 2, labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
+        legend.position = "top",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.key.spacing.x = unit(0.7, "cm"),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 7, colour = "black"),
+        legend.title = element_blank(),
+        #panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+ggsave(filename = paste("Ljubljana_basic",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 180, height = 110, units = "mm")
+
+###############################################################################
+# FIGURE 2b
+###############################################################################
+ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)" & is.na(Variable) == FALSE), aes(x = Month, y = Value, colour = Variable, group = Month)) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
+  geom_point(data = Ljubljana_data_longer_month, aes(x = Month, y = Value, group = Month), color = "black", size = 0.6) +
+  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess: [\u2030]    T: [°C]     P: [mm]")) +
+  scale_color_manual(values = c("#F8766D", "#B79F00", "#00BA38", "#619CFF", "#F564E3")) +
+  scale_x_continuous(breaks = seq(1, 12, 1),
+                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+                     expand = expansion(mult = 0.01, add = 0)) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = as_labeller(facet_labels, label_parsed)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")
+
+ggsave(filename = paste("Ljubljana_violin_month",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 110, units = "mm")
+
+###############################################################################
+# FIGURE 3
+###############################################################################
+ggplot(data = Ljubljana_data_slopes_longer_2, aes(x = Year, color = facet, linetype = weighting)) +
+  geom_line(aes(y = value), linewidth = 0.3) +
+  geom_abline(data = dplyr::filter(Ljubljana_data_slopes_longer_2, weighting == "Unweighted"),
+              aes(intercept = Intercept, slope = Slope), linewidth = 0.3) +
+  labs(y = expression("Slope: [1/\u2030],    intercept: [\u2030]")) +
+  scale_x_continuous(breaks = seq(1981, 2025, 5),
+                     expand = expansion(mult = 0.01, add = 0)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_color_manual(values = c("darkred", "darkblue")) +
+  scale_linetype_manual(values = c(2,1)) +
+  facet_wrap(facet ~ statistic, scales = "free", ncol = 1) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", , margin = margin(0.03, 0.03, 0.03, 0.03, unit = "cm")),
+        legend.position = "top",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.key.spacing.x = unit(0.3, "cm"),
+        legend.key.spacing.y = unit(0.7, "cm"),
+        legend.key.width = unit(0.4, "cm"),
+        legend.margin = margin(t = 0, r = 23, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black"),
+        legend.title = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = paste("Ljubljana_slopes",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 110, units = "mm")
+
+###############################################################################
+# DECOMPOSITION PLOTS (GRAPHICAL ABSTRACT, FIGURE 4)
+###############################################################################
+# DECOMPOSITION GRAPHICAL ABSTRACT #1
+abstract_temperature <- amplitude_df_T_significant %>% 
+  dplyr::filter(IMF == "IMF2" | IMF == "Residual") %>% 
+  dplyr::filter(Type == "IMF oscillation") %>% 
+  mutate(Value = case_when(
+    IMF == "Residual" ~ Value-20,
+    TRUE ~ Value
+  )) %>% 
+  mutate(Variable_facet = "italic(delta)^18*O") %>% 
+  mutate(IMF_facet = case_when(
+    IMF == "IMF2" ~  '"1-year oscillation"',
+    IMF == "Residual" ~ '"Residual trend"',
+    TRUE ~ NA
+  ))
+amplitude_df_plot_filtered_2 <- amplitude_df_plot_filtered %>% 
+  dplyr::filter(Variable == "δ18O" & Type == "IMF oscillation") %>% 
+  mutate(IMF_facet = case_when(
+    IMF_facet == '"1-year oscillation (IMF 2 + IMF 3)"' ~ '"1-year oscillation"',
+    IMF_facet == "Residual" ~ '"Residual trend"',
+    TRUE ~ IMF_facet
+  )) %>% 
+  rbind(abstract_temperature)
+
+ggplot() +
+  geom_line(data = amplitude_df_plot_filtered_2, aes(x = time, y = Value, group = Variable, color = Variable), linewidth = 0.2) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  scale_color_manual(values = c("grey30", "dodgerblue3")) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  facet_wrap(~ IMF_facet, ncol = 1, scales = "free_y", labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 10, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        strip.text = element_text(size = 14, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        plot.margin = unit(c(5.5, 5.5, 5.5, 9.5), "pt"),
+        legend.position = "",
+        legend.title = element_blank()) +
+  labs(y = expression("[\u2030]"))
+
+ggsave(filename = paste("Ljubljana_decomposition_ABSTRACT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 60, units = "mm")
+
+# DECOMPOSITION GRAPHICAL ABSTRACT #2
+ggplot() +
+  geom_line(data = mutate(Ljubljana_data, facet = "Raw trend"), aes(x = Date, y = δ18O), color = "grey30", linewidth = 0.2) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  facet_wrap(~ facet) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        strip.text = element_text(size = 14, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "",
+        legend.title = element_blank()) +
+  labs(y = expression("[\u2030]"))
+
+ggsave(filename = paste("Ljubljana_decomposition_ABSTRACT_2",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 30, units = "mm")
+
+# FIGURE 4a
+amplitude_df_plot_filtered <- amplitude_df_plot %>% 
+  dplyr::filter(!(IMF %in% c("1-year oscillation (IMF 2)", "1-year oscillation (IMF 3)") & Variable %in% c("δ18O", "δ2H"))) %>% 
+  dplyr::filter(!(IMF == "1-year oscillation (IMF 2 + IMF 3)" & Variable == "d-excess")) %>%
+  mutate(Variable_facet = Variable,
+         IMF_facet = IMF) %>% 
+  mutate(Variable_facet = case_when(
+    Variable_facet == "δ18O" ~ "italic(delta)^18*O",
+    Variable_facet == "δ2H" ~ "italic(delta)^2*H",
+    Variable_facet == "d-excess" ~ '"d-excess"',
+    TRUE ~ Variable_facet
+  )) %>% 
+  mutate(Variable_facet = factor(Variable_facet, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"'))) %>%
+  mutate(IMF_facet = case_when(
+    IMF_facet == "1-year oscillation (IMF 2 + IMF 3)" ~ '"1-year oscillation (IMF 2 + IMF 3)"',
+    IMF_facet == "1-year oscillation (IMF 2)" ~ '"1-year oscillation (IMF 2)"',
+    IMF_facet == "1-year oscillation (IMF 3)" ~ '"1-year oscillation (IMF 3)"',
+    IMF_facet == "2.6-year oscillation (IMF 4)" ~ '"2.6-year oscillation (IMF 4)"',
+    IMF_facet == "7.5-year oscillation (IMF 5)" ~ '"7.5-year oscillation (IMF 5)"',
+    IMF_facet == "Resiudal" ~ '"Residual"',
+    TRUE ~ IMF_facet
+  ))
+ggplot() +
+  geom_line(data = amplitude_df_plot_filtered, aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type, color = Variable_facet), linewidth = 0.2) +
+  scale_color_manual(values = c("italic(delta)^18*O" = "#F8766D",
+                                "italic(delta)^2*H" = "#B79F00",
+                                '"d-excess"' = "#00BA38"), labels = scales::parse_format()) +
+  scale_linetype_manual(values = c(2, 1)) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  guides(color = guide_legend(override.aes = list(linewidth = 0.4))) +
+  facet_wrap(Variable_facet ~ IMF_facet, ncol = 2, scales = "free_y", labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.3, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) +
+  labs(y = expression("[\u2030]"))
+
+ggsave(filename = paste("Ljubljana_decomposition_significant",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 110, height = 110, units = "mm")
+
+# FIGURE 4b
+ggplot(spec_df, aes(x = Frequency, y = Power)) +
+  geom_line(linewidth = 0.2) +
+  geom_vline(xintercept = max_freq, color = "#00BA38", linewidth = 0.25) +
+  annotate("text", x = max_freq, y = max(spec_df$Power), label = sprintf("Maximum frequency: %.3f", max_freq), vjust = 0.7, hjust = -0.1, color = "#00BA38", size = 2) +
+  labs(title = "Power Spectrum of IMF 3 (d-excess)", x = "Frequency (cycles per month)", y = "Spectral Density") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black"),
+        axis.title.x = element_text(size = 7, colour = "black"),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        panel.grid.minor.y = element_blank(),
+        plot.title = element_text(size = 7.5),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.2, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) 
+
+ggsave(filename = paste("Ljubljana_power_spectrum_d_IMF3",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 40, units = "mm")
+
+# FIGURE 4c
+eemd_df_significant_plot_filtered <- eemd_df_significant_plot %>%
+  dplyr::filter(!(IMF %in% c("1-year oscillation (IMF 2)", "1-year oscillation (IMF 3)") & Variable %in% c("δ18O", "δ2H"))) %>% 
+  dplyr::filter(!(IMF == "1-year oscillation (IMF 2 + IMF 3)" & Variable == "T")) %>%
+  dplyr::filter(IMF != "Residual") %>%
+  mutate(Facet = case_when(
+    Facet == "δ18O" ~ "italic(delta)^18*O",
+    Facet == "δ2H" ~ "italic(delta)^2*H",
+    Facet == "d-excess" ~ '"d-excess"',
+    TRUE ~ Facet
+  )) %>%
+  mutate(Variable_color = Variable) %>% 
+  mutate(Variable_color = case_when(
+    Variable_color == "δ18O" ~ "italic(delta)^18*O",
+    Variable_color == "δ2H" ~ "italic(delta)^2*H",
+    Variable_color == "d-excess" ~ '"d-excess"',
+    Variable_color == "T" ~ '"T"',
+    TRUE ~ Variable_color
+  )) %>% 
+  mutate(Variable_color = factor(Variable_color, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"', '"T"'))) %>% 
+  mutate(Facet = factor(Facet, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"')))
+ggplot() +
+  geom_line(data = eemd_df_significant_plot_filtered, aes(x = time, y = Value, color = Variable_color), linewidth = 0.2) +
+  scale_color_manual(values = c("italic(delta)^18*O" = "#F8766D",
+                                "italic(delta)^2*H" = "#B79F00",
+                                '"d-excess"' = "#00BA38",
+                                '"T"' = "grey30"), labels = scales::parse_format()) + 
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  guides(color = guide_legend(override.aes = list(linewidth = 0.4))) +
+  facet_wrap (~ Facet, ncol = 1, scales = "free_y", labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.2,0.2,0.2,0.2, "mm")),
+        panel.grid.minor.y = element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "mm"),
+        legend.spacing.y = unit(0, units = "cm"),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.3, units = "cm"),
+        legend.key.height = unit(0.4, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) +
+  labs(y = expression(italic(delta)^18 * O * ", " * italic(delta)^2 * H * " and d-excess [\u2030], T [°C]"))
+
+ggsave(filename = paste("Ljubljana_decomposition_significant_TEMPERATURE",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 65, units = "mm")
+
+###############################################################################
+# HYSPLIT PLOTS (FIGURE 5 & supplemental figures)
+###############################################################################
+# Figure 5a, upper plot
+ggplot() +
+  geom_line(data = HYSPLIT_timeseries_Ljubljana, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
+  scale_x_date(
+    limits = as.Date(c("1981-05-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-05-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  facet_wrap(~ Variable) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        panel.grid.minor.y = element_blank(),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none") +
+  labs(y = expression("%"))
+
+ggsave(filename = paste("Ljubljana_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Figure 5a, middle plot
+ggplot() +
+  geom_line(data = dplyr::mutate(filter(HYSPLIT_timeseries_Ljubljana, Year > 1990), Variable = "10-year rolling Mediterranean air masses"), aes(x = Date, y = Rolling_mediterranean), color = "salmon4", linewidth = 0.3) +
+  scale_x_date(
+    limits = as.Date(c("1981-05-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-05-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none") +
+  labs(y = expression("%"))
+
+ggsave(filename = paste("Ljubljana_HYSPLIT_rolling_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Figure 5a, bottom plot
+ggplot(data = HYSPLIT_timeseries_Ljubljana, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
+  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
+  geom_point(data =HYSPLIT_summary_Ljubljana, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
+  scale_color_manual(values = c("salmon4")) +
+  labs(y = expression("%")) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none")
+
+ggsave(filename = paste("Ljubljana_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Figure 5b, bottom plot
+ggplot() +
+  geom_line(data = dplyr::filter(amplitude_df_mediterranean_significant, IMF != "IMF_2_3"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
+  scale_linetype_manual(values = c(2, 1)) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2025-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.2, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) +
+  labs(y = expression("[%]"))
+
+ggsave(filename = paste("Ljubljana_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 120, units = "mm")
+
+# Portorož HYSPLIT supplemental Figure a, upper plot
+ggplot() +
+  geom_line(data = HYSPLIT_timeseries_Portoroz, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
+  scale_x_date(
+    limits = as.Date(c("2000-01-01", "2025-01-01")),
+    breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  facet_wrap(~ Variable) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        panel.grid.minor.y = element_blank(),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none") +
+  labs(y = expression("%"))
+
+ggsave(filename = paste("Portoroz_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Portorož HYSPLIT supplemental Figure a, bottom plot
+ggplot(data = HYSPLIT_timeseries_Portoroz, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
+  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
+  geom_point(data = HYSPLIT_summary_Portoroz, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
+  scale_color_manual(values = c("salmon4")) +
+  labs(y = expression("%")) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none")
+
+ggsave(filename = paste("Portoroz_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Portorož HYSPLIT supplemental Figure b
+ggplot() +
+  geom_line(data = dplyr::filter(amplitude_df_mediterranean_Portoroz, IMF == "IMF6" | IMF ==  "Residual"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
+  scale_linetype_manual(values = c(2, 1)) +
+  scale_x_date(
+    limits = as.Date(c("2000-01-01", "2025-01-01")),
+    breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.2, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) +
+  labs(y = expression("[%]"))
+
+ggsave(filename = paste("Portoroz_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 85, units = "mm")
+
+# Vienna HYSPLIT supplemental Figure a, upper plot
+ggplot() +
+  geom_line(data = HYSPLIT_timeseries_Vienna, aes(x = Date, y = percent_in_mediterranean), color = "salmon4", linewidth = 0.3) +
+  scale_x_date(
+    limits = as.Date(c("1973-01-01", "2024-01-01")),
+    breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  facet_wrap(~ Variable) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", angle = 45, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        panel.grid.minor.y = element_blank(),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none") +
+  labs(y = expression("%"))
+
+ggsave(filename = paste("Vienna_HYSPLIT_timetrend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Vienna HYSPLIT supplemental Figure a, bottom plot
+ggplot(data = HYSPLIT_timeseries_Vienna, aes(x = Season, y = percent_in_mediterranean, colour = Variable, group = Season), linewidth = 0.3) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, width = 0.3, linewidth = 0.3, position = position_nudge(0.165)) +  # Trim = FALSE to avoid cutting off the tails
+  geom_boxplot(outlier.size = 0.5, linewidth = 0.3, width = 0.3, position = position_nudge(-0.165)) +
+  geom_point(data = HYSPLIT_summary_Vienna, aes(x = Season, y = mean_percent, group = Season), color = "black", size = 0.8, position = position_nudge(0.155)) +
+  scale_color_manual(values = c("salmon4")) +
+  labs(y = expression("%")) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black", hjust = 0.5, vjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        strip.text = element_text(size = 7, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        legend.position = "none")
+
+ggsave(filename = paste("Vienna_HYSPLIT_seasonality",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 40, units = "mm")
+
+# Vienna HYSPLIT supplemental Figure b
+ggplot() +
+  geom_line(data = dplyr::filter(amplitude_df_mediterranean_Vienna, IMF == "IMF3" | IMF ==  "Residual"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
+  scale_linetype_manual(values = c(2, 1)) +
+  scale_x_date(
+    limits = as.Date(c("1973-01-01", "2024-01-01")),
+    breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) + # %b for month
+  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 6, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
+        legend.key.spacing.x = unit(0.3, units = "cm"), 
+        legend.key.width = unit(0.2, units = "cm"),
+        legend.spacing.x =  unit(1.5, units = "cm"),
+        legend.title = element_blank()) +
+  labs(y = expression("[%]"))
+
+ggsave(filename = paste("Vienna_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 85, units = "mm")
+
+###############################################################################
+# DECOMPOSITION CORRELATION BETWEEN IMFs, LAG CHECK, etc.
+###############################################################################
 # LAG CHECK and correlation for IMF 2 MOI
 MOI_IMF2 <- dplyr::filter(eemd_df_MOI, IMF == "IMF2" & time > as.Date("1981-04-01"))$Value
 d_IMF3 <- dplyr::filter(eemd_df_d, IMF == "IMF3" & Variable == "dn" & year(time) < 2023)$Value # TAKE CARE, MANY FILTERS!
@@ -1475,338 +1683,9 @@ shifted_d_IMF3 <- c(rep(NA, 3), d_IMF3) # ADJUSTED BY LAG = 3 MONTHS
 shifted_T_IMF2 <- c(T_IMF2, rep(NA, 3))
 cor(shifted_T_IMF2, shifted_d_IMF3, use = "pairwise.complete.obs")
 
-# FOR POWER SPECTRUM
-imf2_values <- amplitude_df_list[["dn"]] %>%
-  dplyr::filter(IMF == "IMF3", Type == "IMF oscillation") %>%
-  pull(Value)
-spec <- spectrum(imf2_values, plot = FALSE)
-spec_df <- data.frame(
-  Frequency = spec$freq,
-  Power = spec$spec
-)
-max_freq <- spec_df$Frequency[which.max(spec_df$Power)]
-
-# POWER SPECTRUM PLOT
-ggplot(spec_df, aes(x = Frequency, y = Power)) +
-  geom_line(linewidth = 0.2) +
-  geom_vline(xintercept = max_freq, color = "#00BA38", linewidth = 0.25) +
-  annotate("text", x = max_freq, y = max(spec_df$Power), label = sprintf("Maximum frequency: %.3f", max_freq), vjust = 0.7, hjust = -0.1, color = "#00BA38", size = 2) +
-  labs(title = "Power Spectrum of IMF 3 (d-excess)", x = "Frequency (cycles per month)", y = "Spectral Density") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black"),
-        axis.title.x = element_text(size = 7, colour = "black"),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        panel.grid.minor.y = element_blank(),
-        plot.title = element_text(size = 7.5),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.2, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) 
-
-ggsave(filename = paste("Ljubljana_power_spectrum_d_IMF3",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 40, units = "mm")
-
-# DECOMPOSITION SIGNIFICANT
-amplitude_df_plot_filtered <- amplitude_df_plot %>% 
-  dplyr::filter(!(IMF %in% c("1-year oscillation (IMF 2)", "1-year oscillation (IMF 3)") & Variable %in% c("δ18O", "δ2H"))) %>% 
-  dplyr::filter(!(IMF == "1-year oscillation (IMF 2 + IMF 3)" & Variable == "d-excess")) %>%
-  mutate(Variable_facet = Variable,
-         IMF_facet = IMF) %>% 
-  mutate(Variable_facet = case_when(
-    Variable_facet == "δ18O" ~ "italic(delta)^18*O",
-    Variable_facet == "δ2H" ~ "italic(delta)^2*H",
-    Variable_facet == "d-excess" ~ '"d-excess"',
-    TRUE ~ Variable_facet
-  )) %>% 
-  mutate(Variable_facet = factor(Variable_facet, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"'))) %>%
-  mutate(IMF_facet = case_when(
-    IMF_facet == "1-year oscillation (IMF 2 + IMF 3)" ~ '"1-year oscillation (IMF 2 + IMF 3)"',
-    IMF_facet == "1-year oscillation (IMF 2)" ~ '"1-year oscillation (IMF 2)"',
-    IMF_facet == "1-year oscillation (IMF 3)" ~ '"1-year oscillation (IMF 3)"',
-    IMF_facet == "2.6-year oscillation (IMF 4)" ~ '"2.6-year oscillation (IMF 4)"',
-    IMF_facet == "7.5-year oscillation (IMF 5)" ~ '"7.5-year oscillation (IMF 5)"',
-    IMF_facet == "Resiudal" ~ '"Residual"',
-    TRUE ~ IMF_facet
-  ))
-ggplot() +
-  geom_line(data = amplitude_df_plot_filtered, aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type, color = Variable_facet), linewidth = 0.2) +
-  scale_color_manual(values = c("italic(delta)^18*O" = "#F8766D",
-                                "italic(delta)^2*H" = "#B79F00",
-                                '"d-excess"' = "#00BA38"), labels = scales::parse_format()) +
-  scale_linetype_manual(values = c(2, 1)) +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  guides(color = guide_legend(override.aes = list(linewidth = 0.4))) +
-  facet_wrap(Variable_facet ~ IMF_facet, ncol = 2, scales = "free_y", labeller = label_parsed) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
-        panel.grid.minor.y = element_blank(),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.3, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) +
-  labs(y = expression("[\u2030]"))
-
-ggsave(filename = paste("Ljubljana_decomposition_significant",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 110, height = 110, units = "mm")
-
-# DECOMPOSITION ABSTRACT #1
-abstract_temperature <- amplitude_df_T_significant %>% 
-  dplyr::filter(IMF == "IMF2" | IMF == "Residual") %>% 
-  dplyr::filter(Type == "IMF oscillation") %>% 
-  mutate(Value = case_when(
-    IMF == "Residual" ~ Value-20,
-    TRUE ~ Value
-  )) %>% 
-  mutate(Variable_facet = "italic(delta)^18*O") %>% 
-  mutate(IMF_facet = case_when(
-    IMF == "IMF2" ~  '"1-year oscillation"',
-    IMF == "Residual" ~ '"Residual trend"',
-    TRUE ~ NA
-  ))
-amplitude_df_plot_filtered_2 <- amplitude_df_plot_filtered %>% 
-  dplyr::filter(Variable == "δ18O" & Type == "IMF oscillation") %>% 
-  mutate(IMF_facet = case_when(
-    IMF_facet == '"1-year oscillation (IMF 2 + IMF 3)"' ~ '"1-year oscillation"',
-    IMF_facet == "Residual" ~ '"Residual trend"',
-    TRUE ~ IMF_facet
-  )) %>% 
-  rbind(abstract_temperature)
-
-ggplot() +
-  geom_line(data = amplitude_df_plot_filtered_2, aes(x = time, y = Value, group = Variable, color = Variable), linewidth = 0.2) +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  scale_color_manual(values = c("grey30", "dodgerblue3")) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  facet_wrap(~ IMF_facet, ncol = 1, scales = "free_y", labeller = label_parsed) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 10, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(),
-        strip.text = element_text(size = 14, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
-        panel.grid.minor.y = element_blank(),
-        panel.grid.major.y = element_blank(),
-        plot.margin = unit(c(5.5, 5.5, 5.5, 9.5), "pt"),
-        legend.position = "",
-        legend.title = element_blank()) +
-  labs(y = expression("[\u2030]"))
-
-ggsave(filename = paste("Ljubljana_decomposition_ABSTRACT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 60, units = "mm")
-
-# DECOMPOSITION ABSTRACT #2
-ggplot() +
-  geom_line(data = mutate(Ljubljana_data, facet = "Raw trend"), aes(x = Date, y = δ18O), color = "grey30", linewidth = 0.2) +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  facet_wrap(~ facet) +
-  theme_bw() +
-  theme(axis.text.x = element_blank(),
-        axis.title.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(),
-        strip.text = element_text(size = 14, colour = "black", margin = margin(0.3,0.3,0.3,0.3, "mm")),
-        panel.grid.minor.y = element_blank(),
-        legend.position = "",
-        legend.title = element_blank()) +
-  labs(y = expression("[\u2030]"))
-
-ggsave(filename = paste("Ljubljana_decomposition_ABSTRACT_2",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 30, units = "mm")
-
-# DECOMPOSITION SIGNIFICANT CORRELATED WITH TEMPERATURE
-eemd_df_significant_plot_filtered <- eemd_df_significant_plot %>%
-  dplyr::filter(!(IMF %in% c("1-year oscillation (IMF 2)", "1-year oscillation (IMF 3)") & Variable %in% c("δ18O", "δ2H"))) %>% 
-  dplyr::filter(!(IMF == "1-year oscillation (IMF 2 + IMF 3)" & Variable == "T")) %>%
-  dplyr::filter(IMF != "Residual") %>%
-  mutate(Facet = case_when(
-    Facet == "δ18O" ~ "italic(delta)^18*O",
-    Facet == "δ2H" ~ "italic(delta)^2*H",
-    Facet == "d-excess" ~ '"d-excess"',
-    TRUE ~ Facet
-  )) %>%
-  mutate(Variable_color = Variable) %>% 
-  mutate(Variable_color = case_when(
-    Variable_color == "δ18O" ~ "italic(delta)^18*O",
-    Variable_color == "δ2H" ~ "italic(delta)^2*H",
-    Variable_color == "d-excess" ~ '"d-excess"',
-    Variable_color == "T" ~ '"T"',
-    TRUE ~ Variable_color
-  )) %>% 
-  mutate(Variable_color = factor(Variable_color, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"', '"T"'))) %>% 
-  mutate(Facet = factor(Facet, levels = c("italic(delta)^18*O", "italic(delta)^2*H", '"d-excess"')))
-ggplot() +
-  geom_line(data = eemd_df_significant_plot_filtered, aes(x = time, y = Value, color = Variable_color), linewidth = 0.2) +
-  scale_color_manual(values = c("italic(delta)^18*O" = "#F8766D",
-                                "italic(delta)^2*H" = "#B79F00",
-                                '"d-excess"' = "#00BA38",
-                                '"T"' = "grey30"), labels = scales::parse_format()) + 
-  #  values = c("#00BA38", "black", "#F8766D", "#B79F00")) +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  guides(color = guide_legend(override.aes = list(linewidth = 0.4))) +
-  facet_wrap (~ Facet, ncol = 1, scales = "free_y", labeller = label_parsed) +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.2,0.2,0.2,0.2, "mm")),
-        panel.grid.minor.y = element_blank(),
-        plot.margin = margin(0, 0, 0, 0, "mm"),
-        legend.spacing.y = unit(0, units = "cm"),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.3, units = "cm"),
-        legend.key.height = unit(0.4, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) +
-  labs(y = expression(italic(delta)^18 * O * ", " * italic(delta)^2 * H * " and d-excess [\u2030], T [°C]"))
-
-ggsave(filename = paste("Ljubljana_decomposition_significant_TEMPERATURE",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 65, units = "mm")
-
-# DECOMPOSITION HYSPLIT TIMESERIES Ljubljana
-ggplot() +
-  geom_line(data = dplyr::filter(amplitude_df_mediterranean_significant, IMF != "IMF_2_3"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
-  scale_linetype_manual(values = c(2, 1)) +
-  scale_x_date(
-    limits = as.Date(c("1981-01-01", "2025-01-01")),
-    breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        panel.grid.minor.y = element_blank(),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.2, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) +
-  labs(y = expression("[%]"))
-
-ggsave(filename = paste("Ljubljana_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 120, units = "mm")
-
-# DECOMPOSITION HYSPLIT TIMESERIES Portorož
-ggplot() +
-  geom_line(data = dplyr::filter(amplitude_df_mediterranean_Portoroz, IMF == "IMF6" | IMF ==  "Residual"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
-  scale_linetype_manual(values = c(2, 1)) +
-  scale_x_date(
-    limits = as.Date(c("2000-01-01", "2025-01-01")),
-    breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("2000-01-01"), as.Date("2025-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        panel.grid.minor.y = element_blank(),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.2, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) +
-  labs(y = expression("[%]"))
-
-ggsave(filename = paste("Portoroz_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 85, units = "mm")
-
-# DECOMPOSITION HYSPLIT TIMESERIES Vienna
-ggplot() +
-  geom_line(data = dplyr::filter(amplitude_df_mediterranean_Vienna, IMF == "IMF3" | IMF ==  "Residual"), aes(x = time, y = Value, group = interaction(Variable, Type), linetype = Type), linewidth = 0.2, color = "black") +
-  scale_linetype_manual(values = c(2, 1)) +
-  scale_x_date(
-    limits = as.Date(c("1973-01-01", "2024-01-01")),
-    breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "5 year"),
-    minor_breaks = seq(as.Date("1973-01-01"), as.Date("2024-01-01"), by = "1 year"),
-    date_labels = "%Y",
-    expand = expansion(mult = 0.01, add = 0)) + # %b for month
-  facet_wrap(~ IMF, ncol = 1, scales = "free_y") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, vjust = 1, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        axis.title.y = element_text(size = 7, colour = "black"),
-        strip.text = element_text(size = 6, colour = "black", margin = margin(0.5,0.5,0.5,0.5, "mm")),
-        panel.grid.minor.y = element_blank(),
-        legend.position = "top",
-        legend.direction = "horizontal",
-        legend.box.spacing = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 6, colour = "black", margin = margin(t = 0, r = 0, b = 0, l = 0.5)),
-        legend.key.spacing.x = unit(0.3, units = "cm"), 
-        legend.key.width = unit(0.2, units = "cm"),
-        legend.spacing.x =  unit(1.5, units = "cm"),
-        legend.title = element_blank()) +
-  labs(y = expression("[%]"))
-
-ggsave(filename = paste("Vienna_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 85, units = "mm")
-
-###################################
-####### OTHER STAT TESTS ##########
-###################################
+###############################################################################
+# OTHER STAT TESTS
+###############################################################################
 # Basic time series statistical tests
 stat_data <- Ljubljana_data %>%
   dplyr::filter(Year > 1990) %>%

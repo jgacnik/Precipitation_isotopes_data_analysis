@@ -1,3 +1,12 @@
+###############################################################################
+# Hilbert-Huang transform functions for Gačnik et al. (2025)
+# CITATION: Gačnik J., Žagar K., Hatvani I. G., Kern Z., and Vreča P. (in preparation): Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia
+# CODE AUTHOR: JAN GAČNIK, MAY 2025
+# R version: 4.4.2
+###############################################################################
+# Libraries used for the functions below are:
+invisible(lapply(c("ggplot2", "dplyr", "tidyr", "Rlibeemd", "gsignal"), library, character.only = TRUE))
+
 # EEMD analysis and calculation of related variables
 analyze_variable <- function(time_series_clean, varname, time_vector, n_sims = 1000) {
   # EEMD
@@ -6,9 +15,9 @@ analyze_variable <- function(time_series_clean, varname, time_vector, n_sims = 1
   imf_names <- paste0("IMF", 1:n_imfs)
   imf_names_extended <- c(imf_names, "IMF_2_3", "Residual")
   
-  # Add combined IMF 2+3 
+  # Add combined IMF 2+3. Remove the parts where combined IMF_2_3 is added, if this is not neede
   eemd_res_df <- as.data.frame(eemd_res)  # clean names like "IMF 1"
-  colnames(eemd_res_df) <- gsub(" ", "", colnames(eemd_res_df))  # Optional: remove spaces
+  colnames(eemd_res_df) <- gsub(" ", "", colnames(eemd_res_df))
   
   combined_imf_2_3 <- eemd_res_df[, "IMF2"] + eemd_res_df[, "IMF3"]
   eemd_res_extended <- eemd_res_df %>%
@@ -77,7 +86,7 @@ analyze_variable <- function(time_series_clean, varname, time_vector, n_sims = 1
   return(list(summary = summary_df, eemd_result = eemd_res_extended))
 }
 
-# Function to create combined amplitude + oscillation long dataframe per variable
+# Function to create a combined amplitude + oscillation data frame per variable in a long format
 create_amplitude_df <- function(eemd_res, time_vector, varname) {
   n_imfs <- ncol(as.data.frame(eemd_res)) - 1
   

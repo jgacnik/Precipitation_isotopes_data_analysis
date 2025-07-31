@@ -1,3 +1,12 @@
+###############################################################################
+# Weighted and un-weighted MA and RMA functions and corresponding plots for Gačnik et al. (2025)
+# CITATION: Gačnik J., Žagar K., Hatvani I. G., Kern Z., and Vreča P. (in preparation): Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia
+# CODE AUTHOR: JAN GAČNIK, MAY 2025
+# R version: 4.4.2
+###############################################################################
+# Libraries used for the functions below are:
+invisible(lapply(c("ggplot2", "dplyr"), library, character.only = TRUE))
+
 # Calculate MA and weighted MA regressions
 # For the RMA_weighted function, x, y, and weights need to be filtered for NAs
 RMA_weighted <- function(x, y, weights = NULL) {
@@ -68,6 +77,7 @@ RMA_weighted <- function(x, y, weights = NULL) {
   }
 }
 
+# Function to create one or multiple plots (one plot per facet) for the calculated regression
 RMA_plot <- function(data, regression, x, y, facet_var = NULL) {
   p <- data %>%
     ggplot() +
