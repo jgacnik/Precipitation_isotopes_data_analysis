@@ -8,9 +8,9 @@
 install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <-  "INSERT/PATH/TO/FOLDER/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -946,17 +946,15 @@ ggsave(filename = paste("Ljubljana_violin_month",".",figure_type, sep = ""), pat
 ###############################################################################
 # FIGURE 3
 ###############################################################################
-ggplot(data = Ljubljana_data_slopes_longer_2, aes(x = Year, color = facet, linetype = weighting)) +
-  geom_line(aes(y = value), linewidth = 0.3) +
-  geom_abline(data = dplyr::filter(Ljubljana_data_slopes_longer_2, weighting == "Unweighted"),
-              aes(intercept = Intercept, slope = Slope), linewidth = 0.3) +
+ggplot(data = Ljubljana_data_slopes_longer_2, aes(x = Year, linetype = weighting)) +
+  geom_line(aes(y = value), linewidth = 0.25) +
+  geom_segment(data = dplyr::filter(Ljubljana_data_slopes_longer_2, weighting == "Unweighted"),
+              aes(x = 1981,  xend = 2024, y = Intercept + Slope * 1981, yend = Intercept + Slope * 2024), linewidth = 0.3, color = "dodgerblue3", inherit.aes = FALSE) +
   labs(y = expression("Slope: [1/\u2030],    intercept: [\u2030]")) +
-  scale_x_continuous(breaks = seq(1981, 2025, 5),
-                     expand = expansion(mult = 0.01, add = 0)) +
+  scale_x_continuous(breaks = seq(1981, 2025, 5)) +
   scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  scale_color_manual(values = c("darkred", "darkblue")) +
   scale_linetype_manual(values = c(2,1)) +
-  facet_wrap(facet ~ statistic, scales = "free", ncol = 1) +
+  facet_grid(statistic ~ facet, scales = "free") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 6, colour = "black", angle = 45, hjust = 1, vjust = 1),
         axis.title.x = element_blank(),
@@ -974,7 +972,7 @@ ggplot(data = Ljubljana_data_slopes_longer_2, aes(x = Year, color = facet, linet
         legend.title = element_blank(),
         panel.grid.minor = element_blank())
 
-ggsave(filename = paste("Ljubljana_slopes",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 110, units = "mm")
+ggsave(filename = paste("Ljubljana_slopes",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 90, units = "mm")
 
 ###############################################################################
 # DECOMPOSITION PLOTS (GRAPHICAL ABSTRACT, FIGURE 4)
