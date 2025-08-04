@@ -8,9 +8,9 @@
 install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "ENTER/PATH/TO/DIRECTORY/Precipitation isotopes data analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -22,6 +22,7 @@ Vienna_filename_metdata <- "Vienna-daily-meteodata.xlsx"
 Vienna_filename_precipitation <- "Vienna_new_precip.xlsx"
 Portoroz_filename <- "Portoroz_2000-2024.xlsx"
 Portoroz_filename_metdata <- "Portoroz-daily-meteodata.xlsx"
+Climate_filename <- "Climate_normals.xlsx"
 HYSPLIT_filename <- "HYSPLIT_timeseries.xlsx"
 
 MOI_filename <- "MOI.txt"
@@ -847,7 +848,7 @@ ggplot() +
 
 ggsave(filename = paste("Map_slovenia_graphical_abstract.png"), path = path_figures, device = "png", dpi = 1500, width = 60, height = 50, units = "mm")
 
-# FIGURE 1
+# FIGURE 1 MAP
 ggplot() +
   geom_sf(data = borders_sf, fill = NA) +
   geom_sf(data = dplyr::filter(borders_sf, sov_a3 == "SVN"), fill = "grey85") +
@@ -881,9 +882,51 @@ ggplot() +
   theme(axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
+        panel.border = element_blank(),
         panel.grid = element_blank())
 
 ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 80, units = "mm")
+
+# Reading climate data
+climate_data <- read_xlsx(path = file.path(path_data, Climate_filename), sheet = 1, skip = 1) %>% 
+  mutate(Site = "Ljubljana") %>% 
+  rbind(read_xlsx(path = file.path(path_data, Climate_filename), sheet = 2, skip = 1) %>% 
+          mutate(Site = "Portorož"),
+        read_xlsx(path = file.path(path_data, Climate_filename), sheet = 3, skip = 1) %>% 
+          mutate(Site = "Vienna")) %>% 
+  rename("T [°C]" = `T / °C`,
+         "P [mm]" = `P / mm`) %>% 
+  mutate(Month = factor(Month, levels = month.name, labels = month.abb)) %>% 
+  pivot_longer(cols = c ("P [mm]", "T [°C]"), names_to = "Variable", values_to = "Value") %>% 
+  mutate(Variable =  factor(Variable, levels = c("T [°C]", "P [mm]")))
+
+climate_summary <- climate_data %>% 
+  group_by(Site, Variable) %>% 
+  summarise(Mean = mean(Value),
+            StDev = sd(Value)) %>% 
+  mutate(label = sprintf("Mean = %.1f\n SD = %.1f", Mean, StDev), Month = "Jan", y = Inf)
+
+# FIGURE 1 MONTHLY LINE PLOTS
+for (station in unique(climate_data$Site)) {
+  ggplot(data = dplyr::filter(climate_data, Site == station), aes(x = Month, y = Value, color = Variable, group = Variable)) +
+    geom_line(linewidth = 0.3) + 
+    geom_text(data = dplyr::filter(climate_summary, Site == station), aes(x = Month, y = y, label = label),
+              hjust = -0.1, vjust = 1.2, inherit.aes = FALSE,
+              size = 1.7) +
+    facet_wrap(~ Variable, ncol = 1, scales = "free_y") + 
+    theme_bw() +
+    theme(axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+          axis.ticks = element_line(linewidth = 0.2),
+          panel.grid.minor.y = element_blank(),
+          panel.grid = element_line(linewidth = 0.2),
+          legend.position = "",
+          text = element_text(size = 6, color = "black"),
+          strip.text = element_text(margin = margin(0.03, 0, 0.03, 0, unit = "cm")),
+    )
+  ggsave(filename = paste0("Climate_", station, ".", figure_type), path = path_figures, device = figure_type, dpi = 1500, width = 44, height = 33, units = "mm")
+}
 
 ###############################################################################
 # FIGURE 2a
@@ -912,7 +955,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longest, Variable != "3H (TU)" & Vari
         legend.box.margin = margin(t = 0, r = 0, b = 0, l = 0),
         legend.key.spacing.x = unit(0.7, "cm"),
         legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
-        legend.text = element_text(size = 7, colour = "black"),
+        legend.text = element_text(size = 7),
         legend.title = element_blank(),
         #panel.grid.minor.x = element_blank(),
         panel.grid.minor.y = element_blank())
