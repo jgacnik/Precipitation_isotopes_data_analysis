@@ -1,6 +1,6 @@
 ###############################################################################
 # DATA ANALYSIS AND VISUALIZATION for Gačnik et al. (2025)
-# CITATION: Gačnik J., Žagar K., Hatvani I. G., Kern Z., and Vreča P. (in preparation): Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia
+# CITATION: Gačnik J., Žagar K., Hatvani I. G., Kern Z., and Vreča P. (2025): Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia, Environmental Research
 # CODE AUTHOR: JAN GAČNIK, MAY 2025
 # R version: 4.4.2
 ###############################################################################
@@ -8,9 +8,9 @@
 install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -515,15 +515,15 @@ eemd_df_list_Vienna <- Map(function(res, varname) {
 
 # Combine all summaries into one big table
 full_summary <- do.call(rbind, c(
-  lapply(results_Ljubljana, `[[`, "summary"),
-  lapply(results_MOI, `[[`, "summary"))) %>%
+  lapply(results_Ljubljana, `[[`, "summary"))) %>% 
+  #lapply(results_MOI, `[[`, "summary"))) %>%
   mutate(Variable = case_when(
     Variable == "d" ~ "d-excess",
     TRUE ~ Variable)
   ) %>%
   dplyr::select(Variable, IMF, Dominant_Period, p_value, everything()) %>%
   dplyr::select(-Energy) %>%
-  mutate(across(where(is.numeric), ~ round(.x, 2)))
+  mutate(across(where(is.numeric), ~ round(.x, 6)))
 
 full_summary_test <- full_summary %>%
   dplyr::filter(Variable != "MOI")
@@ -605,32 +605,29 @@ eemd_df_d2H_Portoroz <- eemd_df_list_Portoroz[[2]]
 eemd_df_d_Portoroz <- eemd_df_list_Portoroz[[3]]
 
 #### ORTHOGONALITY CHECK ####
-# Step 1: Select only IMF columns
-orthogonality_df <- eemd_df_list_Vienna[[1]] %>%
+# Select only IMF columns from the list for the variable that you want to check (in this case [[1]] chooses the d18O variable)
+orthogonality_df <- eemd_df_list_Ljubljana[[1]] %>%
   dplyr::select(time, IMF, Value) %>%
   pivot_wider(names_from = IMF, values_from = Value)
 imfs <- orthogonality_df %>% dplyr::select(-time)
 
-# Step 2: Function to compute orthogonality index between two vectors
+# Function to compute orthogonality index between two vectors
 orth_index <- function(a, b) {
   sum(a * b) / (sqrt(sum(a^2)) * sqrt(sum(b^2)))
 }
 
-# Step 3: Initialize empty matrix
+# Initialize empty matrix and fill it
 n <- ncol(imfs)
 oi_matrix <- matrix(0, n, n)
 
-# Step 4: Fill in the matrix
 for (i in 1:n) {
   for (j in 1:n) {
     oi_matrix[i, j] <- orth_index(imfs[[i]], imfs[[j]])
   }
 }
 
-# Step 5: Name the matrix
+# Name the matrix and view it (END OF ORTHOGONALITY CHECK)
 colnames(oi_matrix) <- rownames(oi_matrix) <- colnames(imfs)
-
-# Step 6: View the matrix
 print(round(oi_matrix, 3))
 
 # Data frames with only significant IMFs
@@ -1155,11 +1152,12 @@ ggplot() +
 ggsave(filename = paste("Ljubljana_decomposition_significant",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 110, height = 110, units = "mm")
 
 # FIGURE 4b
-ggplot(spec_df, aes(x = Frequency, y = Power)) +
+ggplot(spec_df, aes(x = Frequency*12, y = Power)) +
   geom_line(linewidth = 0.2) +
-  geom_vline(xintercept = max_freq, color = "#00BA38", linewidth = 0.25) +
-  annotate("text", x = max_freq, y = max(spec_df$Power), label = sprintf("Maximum frequency: %.3f", max_freq), vjust = 0.7, hjust = -0.1, color = "#00BA38", size = 2) +
-  labs(title = "Power Spectrum of IMF 3 (d-excess)", x = "Frequency (cycles per month)", y = "Spectral Density") +
+  geom_vline(xintercept = max_freq*12, color = "#00BA38", linewidth = 0.25) +
+  scale_x_continuous(breaks = c(0, 1, 2, 3, 4, 5, 6)) + 
+  annotate("text", x = max_freq*12, y = max(spec_df$Power), label = sprintf("Maximum frequency: %.1f", max_freq*12), vjust = 0.7, hjust = -0.1, color = "#00BA38", size = 2) +
+  labs(title = "Power Spectrum of IMF 3 (d-excess)", x = "Frequency (cycles per year)", y = "Spectral Density") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 6, colour = "black"),
         axis.title.x = element_text(size = 7, colour = "black"),
@@ -1483,6 +1481,130 @@ ggplot() +
 ggsave(filename = paste("Vienna_decomposition_significant_HYSPLIT",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 85, units = "mm")
 
 ###############################################################################
+# Plots for comparison of decomposition residual model fits (supplemental figures)
+###############################################################################
+# Select residuals and shape the data into appropriate format
+d18O_res <- eemd_df_list[[1]] %>% 
+  dplyr::filter(IMF == "Residual") %>% 
+  mutate(time_num = as.numeric(time) - as.numeric(min(time)))
+d2H_res <- eemd_df_list[[2]] %>% 
+  dplyr::filter(IMF == "Residual") %>% 
+  mutate(time_num = as.numeric(time) - as.numeric(min(time)))
+d_exc_res <- eemd_df_list[[3]] %>% 
+  dplyr::filter(IMF == "Residual") %>% 
+  mutate(time_num = as.numeric(time) - as.numeric(min(time)))
+
+# Fit linear and exponential models to the data
+lm_lin_d18O <- lm(Value ~ time_num, data = d18O_res)
+fit_exp_d18O <- nls(
+  Value ~ a * exp(b * time_num) + c,
+  data = d18O_res,
+  start = list(a = diff(range(d18O_res$Value)),
+               b = 1e-4,
+               c = min(d18O_res$Value))
+)
+lm_lin_d2H <- lm(Value ~ time_num, data = d2H_res)
+fit_exp_d2H <- nls(
+  Value ~ a * exp(b * time_num) + c,
+  data = d2H_res,
+  start = list(a = diff(range(d2H_res$Value)),
+               b = 1e-4,
+               c = min(d2H_res$Value))
+)
+lm_lin_d_exc <- lm(Value ~ time_num, data = d_exc_res)
+fit_exp_d_exc <- nls(
+  Value ~ a * exp(b * time_num) + c,
+  data = d_exc_res,
+  start = list(a = diff(range(d_exc_res$Value)),
+               b = 1e-4,
+               c = min(d_exc_res$Value))
+)
+
+d18O_res$pred_linear <- predict(lm_lin_d18O)
+d18O_res$pred_exp <- predict(fit_exp_d18O)
+d2H_res$pred_linear <- predict(lm_lin_d2H)
+d2H_res$pred_exp <- predict(fit_exp_d2H)
+d_exc_res$pred_linear <- predict(lm_lin_d_exc)
+d_exc_res$pred_exp <- predict(fit_exp_d_exc)
+
+# Compare AIC (model fitness criterion)
+AIC(lm_lin_d18O, fit_exp_d18O)
+AIC(lm_lin_d2H, fit_exp_d2H)
+AIC(lm_lin_d_exc, fit_exp_d_exc)
+
+# Plot, δ18O
+ggplot(d18O_res, aes(x = time, y = Value)) +
+  geom_line(aes(color = "Decomposition residual"), size = 0.7) +
+  geom_line(aes(y = pred_linear, color = "Linear fit"), size = 0.7) +
+  geom_line(aes(y = pred_exp, color = "Exponential fit"), size = 0.7) +
+  scale_color_manual(values = c("Decomposition residual" = "black", "Linear fit" = "blue", "Exponential fit" = "red")) +
+  labs(x = "",
+       color = "",
+       y = expression("δ"^18*"O [‰]")
+  ) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2024-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  theme_bw(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        legend.position = "inside",
+        legend.position.inside = c(0.3, 0.8))
+
+ggsave(filename = paste("Ljubljana_d18O_residual_models",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 700, width = 90, height = 85, units = "mm")
+
+# Plot, δ2H
+ggplot(d2H_res, aes(x = time, y = Value)) +
+  geom_line(aes(color = "Decomposition residual"), size = 0.7) +
+  geom_line(aes(y = pred_linear, color = "Linear fit"), size = 0.7) +
+  geom_line(aes(y = pred_exp, color = "Exponential fit"), size = 0.7) +
+  scale_color_manual(values = c("Decomposition residual" = "black", "Linear fit" = "blue", "Exponential fit" = "red")) +
+  labs(x = "",
+       color = "",
+       y = expression("δ"^2*"H [‰]")
+  ) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2024-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  theme_bw(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        legend.position = "inside",
+        legend.position.inside = c(0.3, 0.8))
+
+ggsave(filename = paste("Ljubljana_d2H_residual_models",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 700, width = 90, height = 85, units = "mm")
+
+# Plot, d-excess
+ggplot(d_exc_res, aes(x = time, y = Value)) +
+  geom_line(aes(color = "Decomposition residual"), size = 0.7) +
+  geom_line(aes(y = pred_linear, color = "Linear fit"), size = 0.7) +
+  geom_line(aes(y = pred_exp, color = "Exponential fit"), size = 0.7) +
+  scale_color_manual(values = c("Decomposition residual" = "black", "Linear fit" = "blue", "Exponential fit" = "red")) +
+  labs(x = "",
+       color = "",
+       y = expression("d-excess [‰]")
+  ) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_x_date(
+    limits = as.Date(c("1981-01-01", "2024-01-01")),
+    breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "5 year"),
+    minor_breaks = seq(as.Date("1981-01-01"), as.Date("2024-01-01"), by = "1 year"),
+    date_labels = "%Y",
+    expand = expansion(mult = 0.01, add = 0)) +
+  theme_bw(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        legend.position = "inside",
+        legend.position.inside = c(0.3, 0.8))
+
+ggsave(filename = paste("Ljubljana_d_excess_residual_models",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 700, width = 90, height = 85, units = "mm")
+
+###############################################################################
 # DECOMPOSITION CORRELATION BETWEEN IMFs, LAG CHECK, etc.
 ###############################################################################
 # LAG CHECK and correlation for IMF 2 MOI
@@ -1781,9 +1903,6 @@ pairwise.wilcox.test(x = Ljubljana_data$δ2H, g = Ljubljana_data$Season)
 
 kruskal.test(data = Ljubljana_data, δ18O ~ Season)
 pairwise.wilcox.test(x = Ljubljana_data$δ18O, g = Ljubljana_data$Season)
-
-kruskal.test(data = Ljubljana_data, d ~ Season)
-pairwise.wilcox.test(x = Ljubljana_data$d, g = Ljubljana_data$Season)
 
 kruskal.test(data = Ljubljana_data, d ~ Season)
 pairwise.wilcox.test(x = Ljubljana_data$d, g = Ljubljana_data$Season)
