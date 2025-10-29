@@ -8,9 +8,9 @@
 install.packages(c("mblm", "ggspatial", "sf", "rnaturalearth", "gsignal", "Rlibeemd", "ggpmisc", "lubridate", "slider", "scales", "trend", "segmented", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "ENTER/PATH/TO/DIR/Precipitation_isotopes_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "ENTER/PATH/TO/DIRECTORY/Precipitation_isotopes_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -243,6 +243,27 @@ Ljubljana_slopes_Sen <- Ljubljana_data_slopes_longer %>%
       Intercept = model$coefficients[[1]],
     )
   })
+
+Ljubljana_yearly_Sen_and_MK <- Ljubljana_data_longer %>%
+  filter(!is.na(Value)) %>%
+  group_by(Year, Variable) %>%
+  summarise(Value = mean(Value), .groups = "drop") %>%
+  group_by(Variable) %>%
+  group_modify(~{
+    df <- .x 
+    model <- mblm(Value ~ Year, data = df, repeated = FALSE)
+    mk_inc <- mk.test(df$Value, alternative = "greater")
+    mk_dec <- mk.test(df$Value, alternative = "less")
+    mk_two_sided <- mk.test(df$Value, alternative = "two.sided")
+    tibble(Slope = unname(coef(model)[2]),
+           Intercept = unname(coef(model)[1]),
+           p_increasing = mk_inc$p.value,
+           p_decreasing = mk_dec$p.value,
+           p_two_sided = mk_two_sided$p.value)
+  }) %>%
+  ungroup()
+
+#write.csv(Ljubljana_yearly_Sen_and_MK, file = "Ljubljana_yearly_Sen_and_MK.csv", row.names = FALSE)
 
 Ljubljana_data_slopes_longer_2  <-  Ljubljana_data_slopes_longer %>% 
   left_join(Ljubljana_slopes_Sen, by = c("statistic", "type"))
@@ -971,7 +992,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, Variable != "3H (TU)" & is.na
                      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
                      expand = expansion(mult = 0.01, add = 0)) +
-  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = as_labeller(facet_labels, label_parsed)) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 6, colour = "black"),
         axis.title.x = element_blank(),
