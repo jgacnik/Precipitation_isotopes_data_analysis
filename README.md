@@ -1,5 +1,5 @@
 # Precipitation isotopes data analysis
-Data analysis and visualization of $\delta^{18}O$ and $\delta^{2}H$ values for the 40-year record of precipitation isotopes in Ljubljana. The results obtained using this analysis are presented in Gačnik et al. (_under review_), "Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia"
+Data analysis and visualization of $\delta^{18}O$ and $\delta^{2}H$ values for the 40-year record of precipitation isotopes in Ljubljana. The results obtained using this analysis are presented in Gačnik et al. (2026), "Climate change reflected in 40-year isotopic composition trends of precipitation in Slovenia", _Environmental Research_
 
 ## Instructions:
 1) Open the _"Data analysis and visualization.R"_ in the _"scripts"_ directory, preferably with RStudio as the text editor.
@@ -11,6 +11,6 @@ Pay attention to structure paths with "/" and not with "\\"  (the default for Wi
     - The part of the script where Hilbert-Huang transform (HHT) and Ensemble Empirical Mode Decomposition (EEMD) are performed (starting at line 441) will require up to 20 min to complete the HHT & EEMD for all variables and all stations.
     (3 stations with 6 variables each). Consider running the script on high-performance computing clusters to decrease the computing time.
     - The plot viewer in Rstudio will not show the plots in the intended aspect ratio and size. The actual figures in the intended format are saved into the directory specified by the "path_figures" parameter at the start of the script
-    - The description of how the HYSPLIT timetrends were obtained for all stations is available in the main body of the Gačnik et al. (_under review_) manuscript.
+    - The description of how the HYSPLIT timetrends were obtained for all stations is available in the main body of the Gačnik et al. (2026) manuscript.
 
 Prepared by Jan Gačnik, Klara Žagar, István Gábor Hatvani, Zoltán Kern, and Polona Vreča. 
